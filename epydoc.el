@@ -24,6 +24,9 @@
 
 ;;; Code:
 
+(eval-when-compile
+  (require 'cl))
+
 (defvar epydoc--module-directories
   (list "/usr/lib/python2.6"
         "/usr/lib/pymodules/python2.6"))
