@@ -37,11 +37,12 @@
         'string<))
 
 (defun epydoc--get-modules (directory)
-  (sort (loop for entry in (file-name-all-completions "" directory)
-              if (and (string-match "\\(.*\\)\\(\\.py\\|/\\)$" entry)
-                      (not (string-match-p "\\." entry)))
-              collect (match-string-no-properties 1 entry))
-        'string<))
+  (when (file-exists-p directory)
+    (sort (loop for entry in (file-name-all-completions "" directory)
+                if (and (string-match "\\(.*\\)\\(\\.py\\|/\\)$" entry)
+                        (not (string-match-p "\\." (match-string-no-properties 1 entry))))
+                collect (match-string-no-properties 1 entry))
+          'string<)))
 
 (defun epydoc--view-doc (&rest args)
   (when args
@@ -57,19 +58,32 @@
     (goto-char (point-min))))
 
 ;; ============================================================ ;;
+;; font-lock support
+;; ============================================================ ;;
+
+(defface epydoc--header-face
+  '((t
+     (:foreground "dodger blue"
+      :height 1.5
+      :italic nil
+      :bold t)))
+  "Style of the header in the pydoc")
+
+(defvar epydoc--header-regexp
+  "^\\([A-Z][A-Z ]+\\)$")
+
+(setq epydoc--font-lock-keywords
+  `((,epydoc--header-regexp . font-lock-keyword-face)))
+
+;; ============================================================ ;;
 ;; anything support
 ;; ============================================================ ;;
 
 (defvar anything-c-source-python-modules
-  '((name . "Pyhton Modules")
+  '((name . "Python Modules")
     (candidates . (lambda () (epydoc--get-all-modules)))
     (action . (("Show document" . (lambda (doc) (epydoc--view-doc doc))))))
   "Source for completing Python modules.")
-
-(setq anything-c-source-python-modules
-      '((name . "Pyhton Modules")
-        (candidates . (lambda () (epydoc--get-all-modules)))
-        (action . (("Show document" . (lambda (doc) (epydoc--view-doc doc)))))))
 
 ;; ============================================================ ;;
 ;; imenu support
@@ -87,7 +101,7 @@
   (cons "HEADER"
         (let (index)
           (goto-char (point-min))
-          (while (re-search-forward "^\\([A-Z][A-Z ]+\\)$" (point-max) t)
+          (while (re-search-forward epydoc--header-regexp (point-max) t)
             (push (cons (match-string 1) (match-beginning 1)) index))
           (nreverse index))))
 
@@ -99,6 +113,21 @@
 (defun epydoc--setup-imenu ()
   (make-local-variable imenu-create-index-function)
   (setq imenu-create-index-function 'epydoc--imenu-create-index))
+
+(defun epydoc--next-header (&optional previous)
+  (if previous
+      (progn
+        (beginning-of-line)
+        (re-search-backward epydoc--header-regexp (point-min) t))
+    (end-of-line)
+    (re-search-forward epydoc--header-regexp (point-max) t))
+  (beginning-of-line)
+  (recenter))
+
+;; (define-key epydoc-mode-map (kbd "n")
+;;   (lambda () (interactive) (epydoc--next-header)))
+;; (define-key epydoc-mode-map (kbd "p")
+;;   (lambda () (interactive) (epydoc--next-header t)))
 
 ;; ============================================================ ;;
 ;; commands
