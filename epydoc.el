@@ -89,13 +89,46 @@
 ;; imenu support
 ;; ============================================================ ;;
 
-(defun epydoc--imenu-create-function-index ()
+(defvar epydoc--identifier-pattern
+  "[a-zA-Z_][a-zA-Z_0-9]*")
+
+(defvar epydoc--class-pattern
+  (concat "^\s*class\s+\\(" epydoc--identifier-pattern "\\)"))
+
+(defvar epydoc--method-pattern
+  (concat "^\s*|  \\(" epydoc--identifier-pattern "\\)("))
+
+(defun epydoc--imenu-create-class-index ()
   (cons "CLASSES"
         (let (index)
           (goto-char (point-min))
-          (while (re-search-forward "^\s*class\s+\\([^(]+\\)" (point-max) t)
+          (while (re-search-forward epydoc--class-pattern (point-max) t)
             (push (cons (match-string 1) (match-beginning 1)) index))
           (nreverse index))))
+
+(defun epydoc--find-next-for (pattern)
+  (let ((max (point-max)))
+    (save-excursion
+      (or (re-search-forward pattern max t)
+          max))))
+
+(defun epydoc--imenu-create-method-indices ()
+  (let (next-class-pos
+        class
+        classes)
+    (goto-char (point-min))
+    (while (re-search-forward epydoc--class-pattern (point-max) t)
+      ;; in the class
+      (setq class (match-string 1))
+      (setq next-class-pos (epydoc--find-next-for epydoc--class-pattern))
+      (push (cons class
+                  (let (index)
+                    ;; seek for the class methods
+                    (while (re-search-forward epydoc--method-pattern next-class-pos t)
+                      (push (cons (match-string 1) (match-beginning 1)) index))
+                    (nreverse index)))
+            classes))
+    (nreverse classes)))
 
 (defun epydoc--imenu-create-header-index ()
   (cons "HEADER"
@@ -106,9 +139,11 @@
           (nreverse index))))
 
 (defun epydoc--imenu-create-index ()
-  (list
-   (epydoc--imenu-create-header-index)
-   (epydoc--imenu-create-function-index)))
+  (append
+   (list
+    (epydoc--imenu-create-header-index)
+    (epydoc--imenu-create-class-index))
+   (epydoc--imenu-create-method-indices)))
 
 (defun epydoc--setup-imenu ()
   (make-local-variable imenu-create-index-function)
